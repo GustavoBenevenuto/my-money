@@ -1,0 +1,230 @@
+/* styles.css — reset base + ajustes próprios do app */
+
+/*
+  Reset mínimo (equivalente ao "preflight" do Tailwind). Sem isso, o navegador
+  aplica seu estilo padrão em button/input/select — fundo cinza, fonte
+  diferente, bordas — e a interface fica com aparência quebrada.
+*/
+*, *::before, *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  line-height: inherit;
+}
+
+h1, h2, h3, h4, p {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: 100%;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+}
+
+button {
+  cursor: pointer;
+  text-transform: none;
+  -webkit-appearance: button;
+}
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+canvas, svg {
+  display: block;
+  vertical-align: middle;
+}
+
+svg {
+  fill: none;
+}
+
+html, body {
+  overscroll-behavior-y: contain;
+}
+
+.font-display { letter-spacing: -0.01em; }
+
+/* Navegação inferior: estado ativo */
+.nav-btn.active {
+  color: #F5A623;
+}
+
+/* Sheet/modal: classes aplicadas via JS para abrir/fechar */
+#modal-overlay.open {
+  display: block;
+  opacity: 1;
+}
+#modal-overlay.open #modal-sheet {
+  transform: translateY(0);
+}
+
+#confirm-dialog.open {
+  display: flex;
+}
+
+/* Botões de tipo (Receita/Despesa) no formulário */
+.type-btn {
+  border-color: #1F2E3B;
+  background-color: #182430;
+  color: #8A93A3;
+}
+.type-btn.active[data-type="income"] {
+  border-color: #2DD4A7;
+  color: #2DD4A7;
+  background-color: rgba(45, 212, 167, 0.08);
+}
+.type-btn.active[data-type="expense"] {
+  border-color: #FF6B6B;
+  color: #FF6B6B;
+  background-color: rgba(255, 107, 107, 0.08);
+}
+
+/* Esconde a barra de rolagem horizontal dos filtros, mantendo a rolagem */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Toast */
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, -6px);
+}
+
+/* Foco visível e acessível em toda a interface */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #F5A623;
+  outline-offset: 2px;
+}
+
+/* Respeita preferência do usuário por menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+/* ---- Seletor de categoria em trilha horizontal ----
+   Ocupa apenas uma linha e rola lateralmente, em vez de um
+   dropdown que abre uma lista longa sobre a tela. */
+.cat-track {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cat-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 4.25rem;
+  padding: 0.5rem 0.25rem;
+  border-radius: 0.85rem;
+  background-color: #1F2E3B;
+  border: 2px solid transparent;
+  color: #8A93A3;
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: center;
+  scroll-snap-align: start;
+  transition: transform 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.cat-chip .cat-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.cat-chip .cat-name {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-chip:active { transform: scale(0.94); }
+
+.cat-chip.selected {
+  border-color: #F5A623;
+  color: #EDEFF2;
+  background-color: rgba(245, 166, 35, 0.12);
+}
+
+.cat-chip.add-chip {
+  border-style: dashed;
+  border-color: #33465a;
+  color: #F5A623;
+}
+
+/* Grade de ícones para escolher ao criar categoria */
+.icon-grid {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.icon-option {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  background-color: #182430;
+  border: 2px solid transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-option.selected {
+  border-color: #F5A623;
+  background-color: rgba(245, 166, 35, 0.12);
+}
+
+/* Abas de tipo na tela de categorias (Configurações) */
+.cat-tab {
+  background-color: #1F2E3B;
+  color: #8A93A3;
+}
+
+.cat-tab.active {
+  background-color: rgba(245, 166, 35, 0.15);
+  color: #F5A623;
+}

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0F1720">
+<title>Meu Dinheiro — Controle Financeiro</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!--
+  Os gráficos usam Chart.js via CDN (única dependência externa do app).
+  Se a rede estiver indisponível, o app inteiro continua funcionando
+  normalmente — apenas os gráficos ficam com um aviso no lugar (ver charts.js).
+-->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<!--
+  Estilos: em vez de depender do Tailwind via CDN em tempo de execução
+  (o que falha silenciosamente se a rede estiver bloqueada, atrás de um
+  proxy corporativo ou um bloqueador de anúncios), este projeto usa um
+  CSS próprio e estático (utilities.css) com exatamente as classes usadas
+  aqui. Zero dependência de rede para a interface funcionar e aparecer.
+-->
+<link rel="stylesheet" href="css/utilities.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-bg text-text font-sans antialiased min-h-screen">
+
+<div id="app" class="max-w-md md:max-w-2xl mx-auto min-h-screen relative pb-28">
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="view-dashboard" class="view px-5 pt-6">
+    <header class="flex items-center justify-between mb-6">
+      <div class="min-w-0">
+        <p class="text-textMuted text-xs">Olá 👋</p>
+        <h1 class="font-display text-xl font-semibold whitespace-nowrap">Meu Dinheiro</h1>
+      </div>
+      <div class="flex items-center gap-1 bg-surface rounded-full px-2 py-1.5 shrink-0">
+        <button id="month-prev" class="p-1.5 rounded-full hover:bg-surface2 active:scale-90 transition" aria-label="Mês anterior">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span data-month-label class="text-sm font-medium font-display min-w-[110px] text-center">—</span>
+        <button id="month-next" class="p-1.5 rounded-full hover:bg-surface2 active:scale-90 transition" aria-label="Próximo mês">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Saldo em destaque -->
+    <div class="bg-gradient-to-br from-surface to-surface2 rounded-3xl p-6 mb-4 relative overflow-hidden">
+      <p class="text-textMuted text-xs mb-1">Saldo do mês</p>
+      <p id="card-balance" class="font-display text-3xl font-semibold text-income tracking-tight">A$ 0.00</p>
+      <div class="flex gap-4 mt-4 pt-4 border-t border-white/5">
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px]">💰 Recebido</p>
+          <p id="card-income" class="text-[13px] font-semibold text-income whitespace-nowrap">A$ 0.00</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px]">💸 Gasto</p>
+          <p id="card-expense" class="text-[13px] font-semibold text-expense whitespace-nowrap">A$ 0.00</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px]">📊 Da renda</p>
+          <p id="card-percent" class="text-[13px] font-semibold whitespace-nowrap">0%</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orçamento -->
+    <div id="budget-card" class="bg-surface rounded-2xl p-4 mb-4 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-textMuted">Orçamento mensal</p>
+        <p id="budget-percent-label" class="text-xs font-semibold">0%</p>
+      </div>
+      <div class="h-2 bg-surface2 rounded-full overflow-hidden mb-2">
+        <div id="budget-bar-fill" class="h-full bg-accent rounded-full transition-all duration-500" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between text-[11px] text-textMuted">
+        <span>Gasto: <span id="budget-spent" class="text-text">A$ 0</span></span>
+        <span>Restante: <span id="budget-remaining" class="text-text">A$ 0</span></span>
+        <span>Meta: <span id="budget-total" class="text-text">A$ 0</span></span>
+      </div>
+      <p id="budget-warning" class="hidden mt-2 text-[11px] text-expense font-medium">⚠️ Orçamento estourado neste mês</p>
+    </div>
+
+    <!-- Gráfico rápido: receitas vs despesas -->
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <p class="text-xs font-medium text-textMuted mb-2">Receitas x Despesas</p>
+      <div class="h-40"><canvas id="chart-income-expense-mini"></canvas></div>
+    </div>
+
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-display font-semibold text-sm">Últimas movimentações</h2>
+      <button data-goto="transactions" class="text-xs text-accent font-medium">Ver todas</button>
+    </div>
+    <ul id="dashboard-recent-list" class="space-y-2"></ul>
+  </section>
+
+  <!-- ============ TRANSAÇÕES ============ -->
+  <section id="view-transactions" class="view px-5 pt-6 hidden">
+    <header class="flex items-center justify-between mb-4">
+      <h1 class="font-display text-xl font-semibold">Transações</h1>
+      <span data-month-label class="text-sm text-textMuted font-medium">—</span>
+    </header>
+
+    <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
+      <select id="filter-type" class="bg-surface text-sm rounded-xl px-3 py-2 shrink-0 border border-white/5 focus:outline-none focus:ring-2 focus:ring-accent">
+        <option value="">Todos os tipos</option>
+        <option value="income">Receitas</option>
+        <option value="expense">Despesas</option>
+      </select>
+      <select id="filter-category" class="bg-surface text-sm rounded-xl px-3 py-2 shrink-0 border border-white/5 focus:outline-none focus:ring-2 focus:ring-accent">
+        <option value="">Todas categorias</option>
+      </select>
+    </div>
+    <input id="filter-search" type="search" placeholder="Buscar por descrição…"
+      class="w-full bg-surface text-sm rounded-xl px-4 py-2.5 mb-4 border border-white/5 focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-textMuted">
+
+    <ul id="transactions-full-list" class="space-y-2"></ul>
+  </section>
+
+  <!-- ============ RELATÓRIOS ============ -->
+  <section id="view-reports" class="view px-5 pt-6 hidden">
+    <header class="flex items-center justify-between mb-4">
+      <h1 class="font-display text-xl font-semibold">Relatórios</h1>
+      <span data-month-label class="text-sm text-textMuted font-medium">—</span>
+    </header>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <p class="text-xs font-medium text-textMuted mb-3">Gastos por categoria</p>
+      <div class="h-64"><canvas id="chart-category"></canvas></div>
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <p class="text-xs font-medium text-textMuted mb-3">Receitas x Despesas</p>
+      <div class="h-56"><canvas id="chart-income-expense"></canvas></div>
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <p class="text-xs font-medium text-textMuted mb-3">Evolução dos gastos no mês</p>
+      <div class="h-56"><canvas id="chart-daily"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ============ CONFIGURAÇÕES ============ -->
+  <section id="view-settings" class="view px-5 pt-6 hidden">
+    <header class="mb-5">
+      <h1 class="font-display text-xl font-semibold">Configurações</h1>
+    </header>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4 space-y-4">
+      <div>
+        <label for="setting-currency" class="text-xs font-medium text-textMuted block mb-1.5">Moeda</label>
+        <select id="setting-currency" class="w-full bg-surface2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+          <option value="AUD">A$ — Dólar australiano (AUD)</option>
+          <option value="USD">$ — Dólar americano (USD)</option>
+          <option value="EUR">€ — Euro (EUR)</option>
+          <option value="GBP">£ — Libra esterlina (GBP)</option>
+          <option value="BRL">R$ — Real brasileiro (BRL)</option>
+        </select>
+      </div>
+      <div>
+        <label for="setting-budget" class="text-xs font-medium text-textMuted block mb-1.5">Orçamento mensal</label>
+        <div class="relative">
+          <span data-currency-prefix class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-textMuted pointer-events-none">A$</span>
+          <input id="setting-budget" type="text" inputmode="numeric" autocomplete="off" placeholder="0.00"
+            class="w-full bg-surface2 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-textMuted">
+        </div>
+      </div>
+      <button id="save-settings-btn" class="w-full bg-accent text-bg font-semibold text-sm rounded-xl py-2.5 active:scale-[0.98] transition">
+        Salvar configurações
+      </button>
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <p class="text-xs font-medium text-textMuted mb-3">Minhas categorias</p>
+      <div class="flex gap-2 mb-3">
+        <button type="button" data-cat-tab="expense" class="cat-tab flex-1 rounded-lg py-2 text-xs font-semibold transition">Despesas</button>
+        <button type="button" data-cat-tab="income" class="cat-tab flex-1 rounded-lg py-2 text-xs font-semibold transition">Receitas</button>
+      </div>
+      <ul id="settings-category-list" class="space-y-2"></ul>
+      <p class="text-[11px] text-textMuted mt-3">As categorias padrão não podem ser removidas. Crie novas pelo botão “+” ao adicionar uma transação.</p>
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4 space-y-3">
+      <p class="text-xs font-medium text-textMuted">Dados</p>
+      <button id="export-json-btn" class="w-full flex items-center justify-between bg-surface2 rounded-xl px-4 py-3 text-sm active:scale-[0.98] transition">
+        <span>⬇️ Exportar como JSON</span><span class="text-textMuted">›</span>
+      </button>
+      <button id="export-csv-btn" class="w-full flex items-center justify-between bg-surface2 rounded-xl px-4 py-3 text-sm active:scale-[0.98] transition">
+        <span>⬇️ Exportar como CSV</span><span class="text-textMuted">›</span>
+      </button>
+      <label class="w-full flex items-center justify-between bg-surface2 rounded-xl px-4 py-3 text-sm active:scale-[0.98] transition cursor-pointer">
+        <span>⬆️ Importar backup (JSON)</span><span class="text-textMuted">›</span>
+        <input id="import-json-input" type="file" accept="application/json" class="hidden">
+      </label>
+    </div>
+
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <button id="clear-data-btn" class="w-full text-expense font-semibold text-sm rounded-xl py-2.5 bg-expense/10 active:scale-[0.98] transition">
+        🗑️ Limpar todos os dados
+      </button>
+    </div>
+
+    <p class="text-center text-[11px] text-textMuted pb-2">Todos os dados ficam salvos apenas neste navegador.</p>
+  </section>
+
+</div>
+
+<!-- FAB -->
+<button id="fab-add" aria-label="Adicionar transação"
+  class="fixed bottom-20 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-accent text-bg text-2xl font-semibold shadow-lg shadow-accent/30 flex items-center justify-center active:scale-90 transition z-30">
+  +
+</button>
+
+<!-- Navegação inferior -->
+<nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur border-t border-white/5 z-20">
+  <div class="max-w-md md:max-w-2xl mx-auto grid grid-cols-4 px-2">
+    <button data-goto="dashboard" class="nav-btn flex flex-col items-center gap-0.5 py-3 text-textMuted transition">
+      <span class="text-lg">🏠</span><span class="text-[10px] font-medium">Início</span>
+    </button>
+    <button data-goto="transactions" class="nav-btn flex flex-col items-center gap-0.5 py-3 text-textMuted transition">
+      <span class="text-lg">💳</span><span class="text-[10px] font-medium">Transações</span>
+    </button>
+    <button data-goto="reports" class="nav-btn flex flex-col items-center gap-0.5 py-3 text-textMuted transition">
+      <span class="text-lg">📊</span><span class="text-[10px] font-medium">Relatórios</span>
+    </button>
+    <button data-goto="settings" class="nav-btn flex flex-col items-center gap-0.5 py-3 text-textMuted transition">
+      <span class="text-lg">⚙️</span><span class="text-[10px] font-medium">Ajustes</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Bottom sheet: adicionar/editar transação -->
+<div id="modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden opacity-0 transition-opacity duration-200">
+  <div id="modal-sheet" class="absolute bottom-0 left-0 right-0 max-w-md md:max-w-2xl mx-auto bg-surface rounded-t-3xl p-5 pb-8 translate-y-full transition-transform duration-250 max-h-[90vh] overflow-y-auto">
+    <div class="w-10 h-1 bg-white/15 rounded-full mx-auto mb-4"></div>
+    <h2 id="modal-title" class="font-display text-lg font-semibold mb-4">Nova transação</h2>
+
+    <div class="grid grid-cols-2 gap-2 mb-4">
+      <button type="button" data-type="income" class="type-btn rounded-xl py-2.5 text-sm font-semibold border-2 transition">💰 Receita</button>
+      <button type="button" data-type="expense" class="type-btn rounded-xl py-2.5 text-sm font-semibold border-2 transition">💸 Despesa</button>
+    </div>
+
+    <form id="transaction-form" class="space-y-3" novalidate>
+      <input type="hidden" id="form-id">
+      <input type="hidden" id="form-type" value="expense">
+
+      <div>
+        <label for="form-amount" class="text-xs font-medium text-textMuted block mb-1">Valor</label>
+        <div class="relative">
+          <span data-currency-prefix class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-textMuted pointer-events-none">A$</span>
+          <input id="form-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="0.00"
+            class="w-full bg-surface2 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+        </div>
+        <p class="field-error text-expense text-[11px] mt-1 hidden" data-for="amount"></p>
+      </div>
+
+      <div>
+        <label for="form-description" class="text-xs font-medium text-textMuted block mb-1">Descrição</label>
+        <input id="form-description" type="text" maxlength="60" placeholder="Ex: Salário, Mercado…"
+          class="w-full bg-surface2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+        <p class="field-error text-expense text-[11px] mt-1 hidden" data-for="description"></p>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium text-textMuted">Categoria</label>
+          <span id="form-category-current" class="text-xs text-accent font-medium"></span>
+        </div>
+        <input type="hidden" id="form-category">
+        <!-- Trilha horizontal de categorias: ocupa uma linha só -->
+        <div id="form-category-chips" class="cat-track no-scrollbar"></div>
+        <p class="field-error text-expense text-[11px] mt-1 hidden" data-for="category"></p>
+
+        <!-- Painel para criar categoria, aberto pelo chip "+" -->
+        <div id="new-category-panel" class="hidden mt-2 bg-surface2 rounded-xl p-3">
+          <input id="new-category-name" type="text" maxlength="20" placeholder="Nome da categoria"
+            class="w-full bg-surface rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-textMuted">
+          <div id="new-category-icons" class="icon-grid no-scrollbar mb-2"></div>
+          <p id="new-category-error" class="hidden text-expense text-[11px] mb-2"></p>
+          <div class="flex gap-2">
+            <button type="button" id="new-category-cancel" class="flex-1 rounded-lg py-2 text-xs font-semibold bg-surface active:scale-[0.98] transition">Cancelar</button>
+            <button type="button" id="new-category-save" class="flex-1 rounded-lg py-2 text-xs font-semibold bg-accent text-bg active:scale-[0.98] transition">Criar</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label for="form-date" class="text-xs font-medium text-textMuted block mb-1">Data</label>
+        <input id="form-date" type="date" class="w-full bg-surface2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+        <p class="field-error text-expense text-[11px] mt-1 hidden" data-for="date"></p>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" id="modal-cancel-btn" class="flex-1 rounded-xl py-3 text-sm font-semibold bg-surface2 active:scale-[0.98] transition">Cancelar</button>
+        <button type="submit" class="flex-1 rounded-xl py-3 text-sm font-semibold bg-accent text-bg active:scale-[0.98] transition">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Dialogo de confirmação genérico -->
+<div id="confirm-dialog" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center px-6">
+  <div class="bg-surface rounded-2xl p-5 max-w-xs w-full">
+    <p id="confirm-message" class="text-sm text-text mb-5">Tem certeza?</p>
+    <div class="flex gap-3">
+      <button id="confirm-cancel-btn" class="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-surface2 active:scale-[0.98] transition">Cancelar</button>
+      <button id="confirm-ok-btn" class="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-expense text-white active:scale-[0.98] transition">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-36 left-1/2 -translate-x-1/2 bg-surface2 text-text text-sm px-4 py-2.5 rounded-xl shadow-lg z-50 opacity-0 pointer-events-none transition-all duration-300 max-w-[90%] text-center"></div>
+
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/transactions.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
