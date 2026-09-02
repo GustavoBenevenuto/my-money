@@ -32,37 +32,74 @@
 
   <!-- ============ DASHBOARD ============ -->
   <section id="view-dashboard" class="view px-5 pt-6">
-    <header class="flex items-center justify-between mb-6">
-      <div class="min-w-0">
-        <p class="text-textMuted text-xs">Olá 👋</p>
-        <h1 class="font-display text-xl font-semibold whitespace-nowrap">Meu Dinheiro</h1>
-      </div>
-      <div class="flex items-center gap-1 bg-surface rounded-full px-2 py-1.5 shrink-0">
-        <button id="month-prev" class="p-1.5 rounded-full hover:bg-surface2 active:scale-90 transition" aria-label="Mês anterior">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <span data-month-label class="text-sm font-medium font-display min-w-[110px] text-center">—</span>
-        <button id="month-next" class="p-1.5 rounded-full hover:bg-surface2 active:scale-90 transition" aria-label="Próximo mês">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      </div>
+    <header class="mb-5">
+      <p class="text-textMuted text-xs">Olá 👋</p>
+      <h1 class="font-display text-xl font-semibold">Meu Dinheiro</h1>
     </header>
 
-    <!-- Saldo em destaque -->
+    <!-- Saldo atual: sempre TODAS as movimentações, nunca afetado por filtros -->
     <div class="bg-gradient-to-br from-surface to-surface2 rounded-3xl p-6 mb-4 relative overflow-hidden">
-      <p class="text-textMuted text-xs mb-1">Saldo do mês</p>
+      <p class="text-textMuted text-xs mb-1">Saldo atual</p>
       <p id="card-balance" class="font-display text-3xl font-semibold text-income tracking-tight">A$ 0.00</p>
+      <p id="balance-caption" class="text-textMuted text-[11px] mt-1">Todas as movimentações</p>
       <div class="flex gap-4 mt-4 pt-4 border-t border-white/5">
         <div class="flex-1">
-          <p class="text-textMuted text-[11px]">💰 Recebido</p>
+          <p class="text-textMuted text-[11px]">💰 Total recebido</p>
+          <p id="card-total-income" class="text-[13px] font-semibold text-income whitespace-nowrap">A$ 0.00</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px]">💸 Total gasto</p>
+          <p id="card-total-expense" class="text-[13px] font-semibold text-expense whitespace-nowrap">A$ 0.00</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtro de período: recorte de visualização, não altera o saldo -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-textMuted">Período</p>
+        <span id="period-label" class="text-xs text-accent font-medium">Todas as movimentações</span>
+      </div>
+      <div id="period-chips" class="period-track no-scrollbar"></div>
+
+      <!-- Período personalizado -->
+      <div id="custom-period-panel" class="hidden mt-2 bg-surface2 rounded-xl p-3">
+        <div class="flex gap-2 mb-2">
+          <div class="flex-1">
+            <label for="period-start" class="text-[11px] text-textMuted block mb-1">De</label>
+            <input id="period-start" type="date" class="w-full bg-surface rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent">
+          </div>
+          <div class="flex-1">
+            <label for="period-end" class="text-[11px] text-textMuted block mb-1">Até</label>
+            <input id="period-end" type="date" class="w-full bg-surface rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent">
+          </div>
+        </div>
+        <p id="custom-period-error" class="hidden text-expense text-[11px] mb-2"></p>
+        <button type="button" id="apply-custom-period" class="w-full rounded-lg py-2 text-xs font-semibold bg-accent text-bg active:scale-[0.98] transition">Aplicar período</button>
+      </div>
+    </div>
+
+    <!-- Indicadores do período selecionado -->
+    <div class="bg-surface rounded-2xl p-4 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-medium text-textMuted">No período</p>
+        <span id="period-count" class="text-[11px] text-textMuted">0 movimentações</span>
+      </div>
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px]">Receitas</p>
           <p id="card-income" class="text-[13px] font-semibold text-income whitespace-nowrap">A$ 0.00</p>
         </div>
         <div class="flex-1">
-          <p class="text-textMuted text-[11px]">💸 Gasto</p>
+          <p class="text-textMuted text-[11px]">Despesas</p>
           <p id="card-expense" class="text-[13px] font-semibold text-expense whitespace-nowrap">A$ 0.00</p>
         </div>
         <div class="flex-1">
-          <p class="text-textMuted text-[11px]">📊 Da renda</p>
+          <p class="text-textMuted text-[11px]">Resultado</p>
+          <p id="card-result" class="text-[13px] font-semibold whitespace-nowrap">A$ 0.00</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-textMuted text-[11px] whitespace-nowrap">% renda</p>
           <p id="card-percent" class="text-[13px] font-semibold whitespace-nowrap">0%</p>
         </div>
       </div>
@@ -71,7 +108,7 @@
     <!-- Orçamento -->
     <div id="budget-card" class="bg-surface rounded-2xl p-4 mb-4 hidden">
       <div class="flex items-center justify-between mb-2">
-        <p class="text-xs font-medium text-textMuted">Orçamento mensal</p>
+        <p class="text-xs font-medium text-textMuted">Orçamento do mês atual</p>
         <p id="budget-percent-label" class="text-xs font-semibold">0%</p>
       </div>
       <div class="h-2 bg-surface2 rounded-full overflow-hidden mb-2">
@@ -102,7 +139,7 @@
   <section id="view-transactions" class="view px-5 pt-6 hidden">
     <header class="flex items-center justify-between mb-4">
       <h1 class="font-display text-xl font-semibold">Transações</h1>
-      <span data-month-label class="text-sm text-textMuted font-medium">—</span>
+      <span data-period-label class="text-xs text-accent font-medium">Todas</span>
     </header>
 
     <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
@@ -125,7 +162,7 @@
   <section id="view-reports" class="view px-5 pt-6 hidden">
     <header class="flex items-center justify-between mb-4">
       <h1 class="font-display text-xl font-semibold">Relatórios</h1>
-      <span data-month-label class="text-sm text-textMuted font-medium">—</span>
+      <span data-period-label class="text-xs text-accent font-medium">Todas</span>
     </header>
 
     <div class="bg-surface rounded-2xl p-4 mb-4">
@@ -139,7 +176,7 @@
     </div>
 
     <div class="bg-surface rounded-2xl p-4 mb-4">
-      <p class="text-xs font-medium text-textMuted mb-3">Evolução dos gastos no mês</p>
+      <p class="text-xs font-medium text-textMuted mb-3">Evolução dos gastos no período</p>
       <div class="h-56"><canvas id="chart-daily"></canvas></div>
     </div>
   </section>

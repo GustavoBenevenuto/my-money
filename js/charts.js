@@ -113,15 +113,22 @@ App.Charts = (function () {
     });
   }
 
-  function renderDailyEvolutionChart(canvasId, dailyTotals) {
+  function renderDailyEvolutionChart(canvasId, evolution) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (!isAvailable()) return drawUnavailableState(canvas);
     destroy(canvasId);
 
+    const labels = (evolution && evolution.labels) || [];
+    const values = (evolution && evolution.values) || [];
+
+    if (!labels.length) {
+      drawEmptyState(canvas);
+      return;
+    }
+
     let cumulative = 0;
-    const cumulativeData = dailyTotals.map(v => (cumulative = U.roundMoney(cumulative + v)));
-    const labels = dailyTotals.map((_, i) => String(i + 1));
+    const cumulativeData = values.map(v => (cumulative = U.roundMoney(cumulative + v)));
 
     const ctx = canvas.getContext('2d');
     instances[canvasId] = new Chart(ctx, {
@@ -145,7 +152,7 @@ App.Charts = (function () {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              title: (items) => `Dia ${items[0].label}`,
+              title: (items) => items[0].label,
               label: (item) => ` ${U.formatCurrency(item.raw)}`
             }
           }

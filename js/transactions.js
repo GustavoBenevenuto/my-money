@@ -171,13 +171,52 @@ App.Transactions = (function () {
     App.Storage.saveTransactions(list);
   }
 
-  function getByMonth(monthKey) {
-    return getAll().filter(t => U.getMonthKey(t.date) === monthKey);
+  // ---- Livro contínuo ----
+  // Não existe fechamento mensal nem saldo por mês. O saldo atual considera
+  // TODAS as movimentações registradas. Períodos são apenas filtros de
+  // visualização e nunca alteram o saldo real.
+
+  function inRange(t, range) {
+    if (!range) return true;
+    if (range.start && t.date < range.start) return false;
+    if (range.end && t.date > range.end) return false;
+    return true;
   }
 
-  function getFiltered(monthKey, filters) {
+  function getByRange(range) {
+    return getAll().filter(t => inRange(t, range));
+  }
+
+  // Saldo acumulado de toda a vida do livro. Independe de qualquer filtro.
+  function computeCurrentBalance() {
+    const list = getAll();
+    const income = U.sumMoney(list.filter(t => t.type === 'income').map(t => t.amount));
+    const expense = U.sumMoney(list.filter(t => t.type === 'expense').map(t => t.amount));
+    return {
+      income,
+      expense,
+      balance: U.roundMoney(income - expense),
+      count: list.length
+    };
+  }
+
+  // Indicadores do período selecionado (receitas, despesas e resultado).
+  // "result" é o resultado do recorte, não um saldo próprio.
+  function computeSummary(range) {
+    const list = getByRange(range);
+    const income = U.sumMoney(list.filter(t => t.type === 'income').map(t => t.amount));
+    const expense = U.sumMoney(list.filter(t => t.type === 'expense').map(t => t.amount));
+    const result = U.roundMoney(income - expense);
+    const percentSpent = income > 0
+      ? U.roundMoney((expense / income) * 100)
+      : (expense > 0 ? 100 : 0);
+
+    return { income, expense, result, percentSpent, count: list.length };
+  }
+
+  function getFiltered(range, filters) {
     filters = filters || {};
-    let list = getByMonth(monthKey);
+    let list = getByRange(range);
 
     if (filters.type) {
       list = list.filter(t => t.type === filters.type);
@@ -193,18 +232,8 @@ App.Transactions = (function () {
     return list.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt.localeCompare(a.createdAt)));
   }
 
-  function computeSummary(monthKey) {
-    const list = getByMonth(monthKey);
-    const income = U.sumMoney(list.filter(t => t.type === 'income').map(t => t.amount));
-    const expense = U.sumMoney(list.filter(t => t.type === 'expense').map(t => t.amount));
-    const balance = U.roundMoney(income - expense);
-    const percentSpent = income > 0 ? U.roundMoney((expense / income) * 100) : (expense > 0 ? 100 : 0);
-
-    return { income, expense, balance, percentSpent };
-  }
-
-  function computeCategoryBreakdown(monthKey) {
-    const list = getByMonth(monthKey).filter(t => t.type === 'expense');
+  function computeCategoryBreakdown(range) {
+    const list = getByRange(range).filter(t => t.type === 'expense');
     const totals = {};
     list.forEach(t => {
       totals[t.category] = U.roundMoney((totals[t.category] || 0) + t.amount);
@@ -217,16 +246,46 @@ App.Transactions = (function () {
       .sort((a, b) => b.total - a.total);
   }
 
-  function computeDailyEvolution(monthKey) {
-    const days = U.daysInMonth(monthKey);
-    const totals = new Array(days).fill(0);
-    getByMonth(monthKey).filter(t => t.type === 'expense').forEach(t => {
-      const day = Number(t.date.slice(8, 10));
-      if (day >= 1 && day <= days) {
-        totals[day - 1] = U.roundMoney(totals[day - 1] + t.amount);
-      }
+  // Evolução dos gastos dentro do período, dia a dia.
+  // Quando o período é aberto, usa a primeira e a última data existentes.
+  function computeEvolution(range) {
+    const list = getByRange(range).filter(t => t.type === 'expense');
+    if (!list.length) return { labels: [], values: [] };
+
+    const dates = list.map(t => t.date).sort();
+    const start = (range && range.start) || dates[0];
+    const end = (range && range.end) || dates[dates.length - 1];
+
+    const span = U.daysBetween(start, end);
+    // Períodos muito longos viram agrupamento por mês para o gráfico continuar legível.
+    if (span > 92) return evolutionByMonth(list);
+
+    const perDay = {};
+    list.forEach(t => {
+      perDay[t.date] = U.roundMoney((perDay[t.date] || 0) + t.amount);
     });
-    return totals;
+
+    const labels = [];
+    const values = [];
+    for (let i = 0; i < span; i++) {
+      const day = U.addDaysISO(start, i);
+      labels.push(day.slice(8, 10) + '/' + day.slice(5, 7));
+      values.push(perDay[day] || 0);
+    }
+    return { labels, values };
+  }
+
+  function evolutionByMonth(list) {
+    const perMonth = {};
+    list.forEach(t => {
+      const key = t.date.slice(0, 7);
+      perMonth[key] = U.roundMoney((perMonth[key] || 0) + t.amount);
+    });
+    const keys = Object.keys(perMonth).sort();
+    return {
+      labels: keys.map(k => k.slice(5, 7) + '/' + k.slice(0, 4)),
+      values: keys.map(k => perMonth[k])
+    };
   }
 
   return {
@@ -246,10 +305,11 @@ App.Transactions = (function () {
     add,
     update,
     remove,
-    getByMonth,
+    getByRange,
     getFiltered,
+    computeCurrentBalance,
     computeSummary,
     computeCategoryBreakdown,
-    computeDailyEvolution
+    computeEvolution
   };
 })();
