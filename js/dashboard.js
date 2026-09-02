@@ -5,28 +5,51 @@ App.Dashboard = (function () {
   const U = App.Utils;
   const T = App.Transactions;
 
-  function setMonthLabels(monthKey) {
-    document.querySelectorAll('[data-month-label]').forEach(el => {
-      el.textContent = U.monthLabel(monthKey);
-    });
+  // Saldo contínuo: soma de tudo, sem qualquer filtro aplicado.
+  function renderCurrentBalance() {
+    const { income, expense, balance } = T.computeCurrentBalance();
+
+    const balanceEl = document.getElementById('card-balance');
+    balanceEl.textContent = U.formatCurrency(balance);
+    balanceEl.classList.toggle('text-expense', balance < 0);
+    balanceEl.classList.toggle('text-income', balance >= 0);
+
+    document.getElementById('card-total-income').textContent = U.formatCurrency(income);
+    document.getElementById('card-total-expense').textContent = U.formatCurrency(expense);
+
+    return { income, expense, balance };
   }
 
-  function renderSummaryCards(monthKey) {
-    const { income, expense, balance, percentSpent } = T.computeSummary(monthKey);
+  // Indicadores do recorte selecionado. Não é um saldo: é o resultado do período.
+  function renderPeriodSummary(range) {
+    const { income, expense, result, percentSpent, count } = T.computeSummary(range);
 
     document.getElementById('card-income').textContent = U.formatCurrency(income);
     document.getElementById('card-expense').textContent = U.formatCurrency(expense);
-    document.getElementById('card-balance').textContent = U.formatCurrency(balance);
-    document.getElementById('card-percent').textContent = `${Math.min(percentSpent, 999).toFixed(1)}%`;
+    document.getElementById('card-percent').textContent =
+      `${Math.min(percentSpent, 999).toFixed(1)}%`;
 
-    const balanceCard = document.getElementById('card-balance');
-    balanceCard.classList.toggle('text-expense', balance < 0);
-    balanceCard.classList.toggle('text-income', balance >= 0);
+    const resultEl = document.getElementById('card-result');
+    resultEl.textContent = U.formatCurrency(result);
+    resultEl.classList.toggle('text-expense', result < 0);
+    resultEl.classList.toggle('text-income', result >= 0);
 
-    return { income, expense, balance, percentSpent };
+    document.getElementById('period-count').textContent =
+      count === 1 ? '1 movimentação' : `${count} movimentações`;
+
+    return { income, expense, result, percentSpent };
   }
 
-  function renderBudgetCard(monthKey) {
+  function setPeriodLabels(label) {
+    document.querySelectorAll('[data-period-label]').forEach(el => {
+      el.textContent = label;
+    });
+    const main = document.getElementById('period-label');
+    if (main) main.textContent = label;
+  }
+
+  // O orçamento é sempre do mês corrente, independente do filtro de período.
+  function renderBudgetCard() {
     const settings = App.Storage.getSettings();
     const wrapper = document.getElementById('budget-card');
     const budget = Number(settings.monthlyBudget) || 0;
@@ -37,7 +60,15 @@ App.Dashboard = (function () {
     }
     wrapper.classList.remove('hidden');
 
-    const { expense } = T.computeSummary(monthKey);
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const monthRange = {
+      start: `${y}-${U.pad(m)}-01`,
+      end: U.endOfMonthISO(y, m)
+    };
+
+    const { expense } = T.computeSummary(monthRange);
     const remaining = U.roundMoney(budget - expense);
     const pct = Math.min(U.roundMoney((expense / budget) * 100), 999);
     const over = expense > budget;
@@ -52,8 +83,7 @@ App.Dashboard = (function () {
     bar.classList.toggle('bg-expense', over);
     bar.classList.toggle('bg-accent', !over);
 
-    const warning = document.getElementById('budget-warning');
-    warning.classList.toggle('hidden', !over);
+    document.getElementById('budget-warning').classList.toggle('hidden', !over);
   }
 
   function transactionIcon(t) {
@@ -101,8 +131,9 @@ App.Dashboard = (function () {
   }
 
   return {
-    setMonthLabels,
-    renderSummaryCards,
+    setPeriodLabels,
+    renderCurrentBalance,
+    renderPeriodSummary,
     renderBudgetCard,
     renderList
   };

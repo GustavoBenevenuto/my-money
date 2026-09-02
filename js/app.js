@@ -8,12 +8,29 @@ App.App = (function () {
   const D = App.Dashboard;
   const C = App.Charts;
 
+  // O período é apenas um recorte de visualização. O saldo atual sempre
+  // considera todas as movimentações, independente do que estiver aqui.
   const state = {
-    currentMonthKey: U.currentMonthKey(),
+    periodPreset: 'all',
+    customRange: { start: null, end: null },
     currentView: 'dashboard',
     editingId: null,
     currentType: 'expense'
   };
+
+  const PERIOD_PRESETS = [
+    { id: 'all', label: 'Todas' },
+    { id: 'today', label: 'Hoje' },
+    { id: 'this_month', label: 'Este mês' },
+    { id: 'last_month', label: 'Mês anterior' },
+    { id: 'this_year', label: 'Este ano' },
+    { id: 'last_year', label: 'Ano anterior' },
+    { id: 'custom', label: 'Personalizado' }
+  ];
+
+  function activeRange() {
+    return U.buildRange(state.periodPreset, state.customRange);
+  }
 
   let confirmCallback = null;
 
@@ -25,7 +42,7 @@ App.App = (function () {
     U.attachCurrencyMask(document.getElementById('setting-budget'));
     loadSettingsIntoForm();
     bindNav();
-    bindMonthNav();
+    bindPeriodFilter();
     bindFab();
     bindModal();
     bindFilters();
@@ -58,14 +75,71 @@ App.App = (function () {
     renderActiveView();
   }
 
-  function bindMonthNav() {
-    document.getElementById('month-prev').addEventListener('click', () => changeMonth(-1));
-    document.getElementById('month-next').addEventListener('click', () => changeMonth(1));
+  /* ---------- Filtro de período ---------- */
+
+  function bindPeriodFilter() {
+    const track = document.getElementById('period-chips');
+    track.innerHTML = PERIOD_PRESETS
+      .map(p => `<button type="button" class="period-chip" data-period="${p.id}">${p.label}</button>`)
+      .join('');
+
+    track.querySelectorAll('.period-chip').forEach(chip => {
+      chip.addEventListener('click', () => selectPeriod(chip.dataset.period));
+    });
+
+    document.getElementById('apply-custom-period')
+      .addEventListener('click', applyCustomPeriod);
+
+    highlightPeriodChips();
   }
 
-  function changeMonth(delta) {
-    state.currentMonthKey = U.shiftMonthKey(state.currentMonthKey, delta);
+  function selectPeriod(preset) {
+    const panel = document.getElementById('custom-period-panel');
+
+    if (preset === 'custom') {
+      // Só abre o painel; o período muda quando o usuário aplicar as datas.
+      panel.classList.remove('hidden');
+      document.getElementById('custom-period-error').classList.add('hidden');
+      if (!document.getElementById('period-start').value) {
+        document.getElementById('period-end').value = U.todayISO();
+      }
+      highlightPeriodChips('custom');
+      return;
+    }
+
+    panel.classList.add('hidden');
+    state.periodPreset = preset;
     refresh();
+  }
+
+  function applyCustomPeriod() {
+    const start = document.getElementById('period-start').value || null;
+    const end = document.getElementById('period-end').value || null;
+    const errorEl = document.getElementById('custom-period-error');
+
+    if (!start && !end) {
+      errorEl.textContent = 'Escolha ao menos uma data.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    if (start && end && start > end) {
+      errorEl.textContent = 'A data inicial não pode ser depois da final.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    errorEl.classList.add('hidden');
+    state.customRange = { start, end };
+    state.periodPreset = 'custom';
+    document.getElementById('custom-period-panel').classList.add('hidden');
+    refresh();
+  }
+
+  function highlightPeriodChips(forced) {
+    const active = forced || state.periodPreset;
+    document.querySelectorAll('.period-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.period === active);
+    });
   }
 
   /* ---------- Renderização ---------- */
@@ -79,9 +153,16 @@ App.App = (function () {
 
   function refresh() {
     updateCurrencyPrefixes();
-    D.setMonthLabels(state.currentMonthKey);
-    D.renderSummaryCards(state.currentMonthKey);
-    D.renderBudgetCard(state.currentMonthKey);
+    highlightPeriodChips();
+
+    const range = activeRange();
+    D.setPeriodLabels(U.rangeLabel(state.periodPreset, range));
+
+    // Saldo atual nunca usa o filtro; indicadores abaixo usam.
+    D.renderCurrentBalance();
+    D.renderPeriodSummary(range);
+    D.renderBudgetCard();
+
     renderActiveView();
   }
 
@@ -95,14 +176,15 @@ App.App = (function () {
   }
 
   function renderDashboardView() {
-    const summary = T.computeSummary(state.currentMonthKey);
+    const range = activeRange();
+    const summary = T.computeSummary(range);
     C.renderIncomeExpenseChart('chart-income-expense-mini', summary.income, summary.expense);
-    renderRecentList();
+    renderRecentList(range);
   }
 
-  function renderRecentList() {
-    const list = T.getFiltered(state.currentMonthKey, {}).slice(0, 5);
-    D.renderList('dashboard-recent-list', list, 'Nenhuma transação neste mês ainda.');
+  function renderRecentList(range) {
+    const list = T.getFiltered(range || activeRange(), {}).slice(0, 5);
+    D.renderList('dashboard-recent-list', list, 'Nenhuma movimentação neste período.');
     bindListItemActions('dashboard-recent-list');
   }
 
@@ -112,20 +194,20 @@ App.App = (function () {
       category: document.getElementById('filter-category').value,
       search: document.getElementById('filter-search').value
     };
-    const list = T.getFiltered(state.currentMonthKey, filters);
-    D.renderList('transactions-full-list', list, 'Nenhuma transação encontrada com esses filtros.');
+    const list = T.getFiltered(activeRange(), filters);
+    D.renderList('transactions-full-list', list, 'Nenhuma movimentação encontrada com esses filtros.');
     bindListItemActions('transactions-full-list');
   }
 
   function renderReports() {
-    const breakdown = T.computeCategoryBreakdown(state.currentMonthKey);
-    C.renderCategoryChart('chart-category', breakdown);
+    const range = activeRange();
 
-    const summary = T.computeSummary(state.currentMonthKey);
+    C.renderCategoryChart('chart-category', T.computeCategoryBreakdown(range));
+
+    const summary = T.computeSummary(range);
     C.renderIncomeExpenseChart('chart-income-expense', summary.income, summary.expense);
 
-    const daily = T.computeDailyEvolution(state.currentMonthKey);
-    C.renderDailyEvolutionChart('chart-daily', daily);
+    C.renderDailyEvolutionChart('chart-daily', T.computeEvolution(range));
   }
 
   function bindListItemActions(containerId) {
@@ -447,7 +529,6 @@ App.App = (function () {
     }
 
     closeModal();
-    state.currentMonthKey = U.getMonthKey(data.date);
     refresh();
   }
 
@@ -516,7 +597,8 @@ App.App = (function () {
     document.getElementById('clear-data-btn').addEventListener('click', () => {
       showConfirm('Tem certeza? Todos os seus dados financeiros serão apagados.', () => {
         S.clearAll();
-        state.currentMonthKey = U.currentMonthKey();
+        state.periodPreset = 'all';
+        state.customRange = { start: null, end: null };
         loadSettingsIntoForm();
         populateFilterCategories();
         renderCategorySettings();

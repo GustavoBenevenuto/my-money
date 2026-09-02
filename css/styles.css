@@ -228,3 +228,32 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background-color: rgba(245, 166, 35, 0.15);
   color: #F5A623;
 }
+
+/* ---- Filtro de período (recorte de visualização) ---- */
+.period-track {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.period-chip {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.75rem;
+  border-radius: 9999px;
+  background-color: #182430;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #8A93A3;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.period-chip:active { transform: scale(0.95); }
+
+.period-chip.active {
+  background-color: rgba(245, 166, 35, 0.14);
+  border-color: #F5A623;
+  color: #F5A623;
+}

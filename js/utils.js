@@ -149,6 +149,76 @@ App.Utils = (function () {
     });
   }
 
+  // ---- Períodos (apenas filtros de visualização) ----
+  // Um período é { start, end } em "YYYY-MM-DD". null = sem limite.
+  // Nada aqui altera movimentações: serve só para recortar a visualização.
+
+  function endOfMonthISO(year, month) {
+    const last = new Date(year, month, 0).getDate();
+    return `${year}-${pad(month)}-${pad(last)}`;
+  }
+
+  function buildRange(preset, custom) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const today = todayISO();
+
+    switch (preset) {
+      case 'today':
+        return { start: today, end: today };
+      case 'this_month':
+        return { start: `${y}-${pad(m)}-01`, end: endOfMonthISO(y, m) };
+      case 'last_month': {
+        const ly = m === 1 ? y - 1 : y;
+        const lm = m === 1 ? 12 : m - 1;
+        return { start: `${ly}-${pad(lm)}-01`, end: endOfMonthISO(ly, lm) };
+      }
+      case 'this_year':
+        return { start: `${y}-01-01`, end: `${y}-12-31` };
+      case 'last_year':
+        return { start: `${y - 1}-01-01`, end: `${y - 1}-12-31` };
+      case 'custom':
+        return {
+          start: (custom && custom.start) || null,
+          end: (custom && custom.end) || null
+        };
+      case 'all':
+      default:
+        return { start: null, end: null };
+    }
+  }
+
+  function rangeLabel(preset, range) {
+    const names = {
+      all: 'Todas as movimentações',
+      today: 'Hoje',
+      this_month: 'Este mês',
+      last_month: 'Mês anterior',
+      this_year: 'Este ano',
+      last_year: 'Ano anterior'
+    };
+    if (preset !== 'custom') return names[preset] || names.all;
+
+    if (range.start && range.end) return `${formatDateBR(range.start)} — ${formatDateBR(range.end)}`;
+    if (range.start) return `A partir de ${formatDateBR(range.start)}`;
+    if (range.end) return `Até ${formatDateBR(range.end)}`;
+    return 'Período personalizado';
+  }
+
+  // Quantos dias tem o período (usado no gráfico de evolução).
+  function daysBetween(startISO, endISO) {
+    const a = new Date(startISO + 'T00:00:00');
+    const b = new Date(endISO + 'T00:00:00');
+    return Math.round((b - a) / 86400000) + 1;
+  }
+
+  function addDaysISO(isoDate, days) {
+    const d = new Date(isoDate + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
   function escapeHtml(str) {
     if (str == null) return '';
     return String(str)
@@ -182,6 +252,11 @@ App.Utils = (function () {
     monthLabel,
     shiftMonthKey,
     daysInMonth,
+    buildRange,
+    rangeLabel,
+    daysBetween,
+    addDaysISO,
+    endOfMonthISO,
     maskCurrency,
     currencySymbol,
     unmaskCurrency,
